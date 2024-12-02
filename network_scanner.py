@@ -1,4 +1,16 @@
 from scapy.all import ARP, Ether, srp
+from scapy.all import IP, TCP, sr1
+
+def scan_ports(ip, ports):
+    open_ports = []
+    for port in ports:
+        pkt = IP(dst=ip) / TCP(dport=port, flags="S")
+        resp = sr1(pkt, timeout=1, verbose=0)
+        if resp and resp.haslayer(TCP) and resp.getlayer(TCP).flags == 0x12:
+            open_ports.append(port)
+
+            sr1(IP(dst=ip)/TCP(dport=port, flags="R"),timeout=1, verbose=0)
+    return open_ports
 
 def scan(ip):
     arp = ARP(pdst=ip)
@@ -9,7 +21,8 @@ def scan(ip):
 
     devices = []
     for sent, recieved in result:
-        devices.append({'ip': recieved.psrc, 'mac': recieved.hwsrc})
+        open_ports = scan_ports(recieved.psrc, [80, 443])
+        devices.append({'ip': recieved.psrc, 'mac': recieved.hwsrc, 'ports': open_ports})
 
     return devices
 
@@ -17,6 +30,7 @@ def print_results(devices):
     print("IP Address\t\tMAC Address")
     print("-------------------------------------------------")
     for device in devices:
+        open_ports = ", ".join(map(str, device['ports']))
         print(f"{device['ip']}\t\t{device['mac']}")
 
 if __name__ == "__main__":
